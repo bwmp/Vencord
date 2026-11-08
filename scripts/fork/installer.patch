@@ -91,6 +91,33 @@ index 31acccb..cf6da3c 100644
  				},
  				nil,
  			},
+diff --git a/patcher.go b/patcher.go
+index 346754b..1668c3e 100644
+--- a/patcher.go
++++ b/patcher.go
+@@ -12,6 +12,7 @@ import (
+ 	"os/exec"
+ 	"path/filepath"
+ 	path "path/filepath"
++	"runtime"
+ 	"strings"
+ )
+ 
+@@ -27,6 +28,14 @@ func init() {
+ 	} else if dir = os.Getenv("DISCORD_USER_DATA_DIR"); dir != "" {
+ 		Log.Debug("Using DISCORD_USER_DATA_DIR/../VencordData")
+ 		BaseDir = path.Join(dir, "..", "VencordData")
++	} else if runtime.GOOS == "windows" {
++		configDir, err := os.UserConfigDir()
++		if err != nil {
++			FilesDirErr = err
++			Log.Error("Failed to find Windows user config directory:", err)
++			return
++		}
++		BaseDir = path.Join(configDir, "Vencord")
+ 	} else {
+ 		Log.Debug("Using UserConfig")
+ 		configDir := os.Getenv("XDG_CONFIG_HOME")
 diff --git a/self_updater.go b/self_updater.go
 index 4d6bf1a..66a4906 100644
 --- a/self_updater.go
@@ -104,3 +131,43 @@ index 4d6bf1a..66a4906 100644
  	switch runtime.GOOS {
  	case "windows":
  		filename := Ternary(buildinfo.UiType == buildinfo.UiTypeCli, "VencordInstallerCli.exe", "VencordInstaller.exe")
+diff --git a/config_windows_test.go b/config_windows_test.go
+new file mode 100644
+index 0000000..a7f84fa
+--- /dev/null
++++ b/config_windows_test.go
+@@ -0,0 +1,34 @@
++package main
++
++import (
++	"os"
++	"os/exec"
++	"path/filepath"
++	"testing"
++)
++
++func TestWindowsDefaultConfigPath(t *testing.T) {
++	if os.Getenv("BWMP_TEST_CONFIG_PATH") == "1" {
++		want := filepath.Join(os.Getenv("APPDATA"), "Vencord")
++		if BaseDir != want || !filepath.IsAbs(Patcher) {
++			t.Fatalf("BaseDir = %q, Patcher = %q; want %q with an absolute patcher path", BaseDir, Patcher, want)
++		}
++		if FilesDirErr != nil {
++			t.Fatal(FilesDirErr)
++		}
++		return
++	}
++
++	cmd := exec.Command(os.Args[0], "-test.run=^TestWindowsDefaultConfigPath$")
++	cmd.Env = append(os.Environ(),
++		"BWMP_TEST_CONFIG_PATH=1",
++		"APPDATA="+t.TempDir(),
++		"HOME=",
++		"XDG_CONFIG_HOME=",
++		"VENCORD_USER_DATA_DIR=",
++		"DISCORD_USER_DATA_DIR=",
++	)
++	if output, err := cmd.CombinedOutput(); err != nil {
++		t.Fatalf("Default Windows initialization failed: %v\n%s", err, output)
++	}
++}
