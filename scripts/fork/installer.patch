@@ -1,0 +1,106 @@
+diff --git a/cli.go b/cli.go
+index 316b60d..9f545e4 100644
+--- a/cli.go
++++ b/cli.go
+@@ -90,7 +90,7 @@ func main() {
+ 
+ 	if *installFlag || *updateFlag {
+ 		if !<-GithubDoneChan {
+-			die("Not " + Ternary(*installFlag, "installing", "updating") + " as fetching release data failed. If this issue persists, see https://vencord.dev/support")
++			die("Not " + Ternary(*installFlag, "installing", "updating") + " as fetching release data failed. If this issue persists, see https://github.com/bwmp/Vencord/blob/main/FORK.md")
+ 		}
+ 	}
+ 
+@@ -195,7 +195,7 @@ func exitSuccess() {
+ }
+ 
+ func exitFailure() {
+-	color.HiRed("❌ Failed! If this issue persists, see https://vencord.dev/support")
++	color.HiRed("❌ Failed! If this issue persists, see https://github.com/bwmp/Vencord/blob/main/FORK.md")
+ 	exit(1)
+ }
+ 
+diff --git a/constants.go b/constants.go
+index 2a65ce3..e2003dd 100644
+--- a/constants.go
++++ b/constants.go
+@@ -11,12 +11,12 @@ import (
+ 	"vencordinstaller/buildinfo"
+ )
+ 
+-const ReleaseUrl = "https://api.github.com/repos/Vendicated/Vencord/releases/latest"
+-const ReleaseUrlFallback = "https://vencord.dev/releases/vencord"
+-const InstallerReleaseUrl = "https://api.github.com/repos/Vencord/Installer/releases/latest"
+-const InstallerReleaseUrlFallback = "https://vencord.dev/releases/installer"
++const ReleaseUrl = "https://api.github.com/repos/bwmp/Vencord/releases/latest"
++const ReleaseUrlFallback = "https://api.github.com/repos/bwmp/Vencord/releases/latest"
++const InstallerReleaseUrl = "https://api.github.com/repos/bwmp/Vencord/releases/latest"
++const InstallerReleaseUrlFallback = "https://api.github.com/repos/bwmp/Vencord/releases/latest"
+ 
+-var UserAgent = "VencordInstaller/" + buildinfo.InstallerGitHash + " (https://github.com/Vencord/Installer)"
++var UserAgent = "VencordInstaller/" + buildinfo.InstallerGitHash + " (https://github.com/bwmp/Vencord)"
+ 
+ var (
+ 	DiscordGreen        = color.RGBA{0, 133, 69, 0xff}
+diff --git a/gui.go b/gui.go
+index 31acccb..cf6da3c 100644
+--- a/gui.go
++++ b/gui.go
+@@ -75,7 +75,7 @@ func main() {
+ 		g.Update()
+ 	}()
+ 
+-	win = g.NewMasterWindow("Vencord Installer", 1200, 800, 0)
++	win = g.NewMasterWindow("BWMP Vencord Installer", 1200, 800, 0)
+ 
+ 	icon, _, err := image.Decode(bytes.NewReader(iconBytes))
+ 	if err != nil {
+@@ -126,7 +126,7 @@ func InstallLatestBuilds() (err error) {
+ 
+ 	err = installLatestBuilds()
+ 	if err != nil {
+-		ShowErrorModal("Failed to install the latest Vencord builds from GitHub", err.Error(), "https://vencord.dev/support/#Failed-to-install-the-latest-Vencord-builds-from-GitHub")
++		ShowErrorModal("Failed to install the latest Vencord builds from GitHub", err.Error(), "https://github.com/bwmp/Vencord/blob/main/FORK.md")
+ 	}
+ 	return
+ }
+@@ -188,7 +188,7 @@ func handleErr(di *DiscordInstall, err error, action string) {
+ 		}
+ 	}
+ 
+-	ShowErrorModal("Failed to "+action+" this Install.", err.Error(), "https://vencord.dev/support/#Failed-to-patch-this-Install")
++	ShowErrorModal("Failed to "+action+" this Install.", err.Error(), "https://github.com/bwmp/Vencord/blob/main/FORK.md")
+ }
+ 
+ func HandleScuffedInstall() {
+@@ -740,7 +740,7 @@ func loop() {
+ 		Layout(
+ 			g.Align(g.AlignCenter).To(
+ 				g.Style().SetFontSize(40).To(
+-					g.Label("Vencord Installer"),
++					g.Label("BWMP Vencord Installer"),
+ 				),
+ 			),
+ 			g.Dummy(0, 40),
+@@ -748,7 +748,7 @@ func loop() {
+ 			&CondWidget{
+ 				GithubError != nil,
+ 				func() g.Widget {
+-					return g.Style().SetFontSize(20).To(renderErrorCard(DiscordRed, color.White, "Failed to fetch Info from GitHub. If this issue persists, visit https://vencord.dev/support for help.", 40))
++					return g.Style().SetFontSize(20).To(renderErrorCard(DiscordRed, color.White, "Failed to fetch Info from GitHub. If this issue persists, visit https://github.com/bwmp/Vencord/blob/main/FORK.md for help.", 40))
+ 				},
+ 				nil,
+ 			},
+diff --git a/self_updater.go b/self_updater.go
+index 4d6bf1a..66a4906 100644
+--- a/self_updater.go
++++ b/self_updater.go
+@@ -46,7 +46,7 @@ func init() {
+ }
+ 
+ func GetInstallerDownloadLink() string {
+-	const BaseUrl = "https://github.com/Vencord/Installer/releases/latest/download/"
++	const BaseUrl = "https://github.com/bwmp/Vencord/releases/latest/download/"
+ 	switch runtime.GOOS {
+ 	case "windows":
+ 		filename := Ternary(buildinfo.UiType == buildinfo.UiTypeCli, "VencordInstallerCli.exe", "VencordInstaller.exe")

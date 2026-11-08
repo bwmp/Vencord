@@ -1,0 +1,135 @@
+name: Sync upstream and release Windows
+
+on:
+    push:
+        branches: [main]
+    schedule:
+        - cron: "17 * * * *"
+    workflow_dispatch:
+
+permissions:
+    contents: write
+
+concurrency:
+    group: bwmp-release
+    cancel-in-progress: false
+
+jobs:
+    release:
+        if: github.repository == 'bwmp/Vencord' && github.ref == 'refs/heads/main'
+        runs-on: windows-latest
+        timeout-minutes: 45
+        defaults:
+            run:
+                shell: bash
+        env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GH_REPO: bwmp/Vencord
+            VENCORD_REMOTE: bwmp/Vencord
+            INSTALLER_COMMIT: 595991ca27520868af4f9c48adf0c53ee971f1f2
+
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  ref: main
+                  fetch-depth: 0
+
+            - name: Merge upstream without publishing
+              id: candidate
+              run: |
+                  git config user.name 'github-actions[bot]'
+                  git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+                  git fetch https://github.com/Vendicated/Vencord.git main
+                  git merge --no-edit FETCH_HEAD
+                  hash=$(git rev-parse --short HEAD)
+                  latest=$(gh api repos/bwmp/Vencord/releases --jq '[.[] | select(.draft == false and .prerelease == false)][0].name // ""')
+                  echo "hash=$hash" >> "$GITHUB_OUTPUT"
+                  echo "tag=build-$hash" >> "$GITHUB_OUTPUT"
+                  echo "BUILD_HASH=$hash" >> "$GITHUB_ENV"
+                  echo "BUILD_TAG=build-$hash" >> "$GITHUB_ENV"
+                  if [[ "$latest" == "BWMP Vencord $hash" ]]; then
+                      echo "needed=false" >> "$GITHUB_OUTPUT"
+                      echo 'Already up to date.' >> "$GITHUB_STEP_SUMMARY"
+                  else
+                      echo "needed=true" >> "$GITHUB_OUTPUT"
+                  fi
+
+            - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+              if: steps.candidate.outputs.needed == 'true'
+
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              if: steps.candidate.outputs.needed == 'true'
+              with:
+                  node-version: 24
+                  cache: pnpm
+
+            - name: Check and build Vencord
+              if: steps.candidate.outputs.needed == 'true'
+              run: |
+                  pnpm install --frozen-lockfile
+                  pnpm test:ts
+                  pnpm lint
+                  pnpm lint-styles
+                  pnpm build --standalone --dev
+                  pnpm buildWeb --standalone --dev
+                  pnpm generatePluginJson
+                  pnpm build --standalone
+
+            - name: Prepare installer source
+              if: steps.candidate.outputs.needed == 'true'
+              run: |
+                  git clone https://github.com/Vencord/Installer.git "$RUNNER_TEMP/bwmp-installer"
+                  git -C "$RUNNER_TEMP/bwmp-installer" checkout --detach "$INSTALLER_COMMIT"
+                  git -C "$RUNNER_TEMP/bwmp-installer" apply "$GITHUB_WORKSPACE/scripts/fork/installer.patch"
+
+            - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2.32.0
+              if: steps.candidate.outputs.needed == 'true'
+              with:
+                  install: git make mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL2 mingw-w64-x86_64-go
+
+            - name: Build Windows GUI and CLI installers
+              if: steps.candidate.outputs.needed == 'true'
+              shell: msys2 {0}
+              run: |
+                  set -euo pipefail
+                  export GOROOT=/mingw64/lib/go
+                  export GOPATH=/mingw64
+                  cd "$RUNNER_TEMP/bwmp-installer"
+                  go mod download
+                  go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e
+                  go test -tags cli ./...
+                  flags="-s -w -X vencordinstaller/buildinfo.InstallerGitHash=$INSTALLER_COMMIT -X vencordinstaller/buildinfo.InstallerTag=$BUILD_TAG"
+                  make GUI=1 VERSION=1.0.0 LDFLAGS="$flags -H=windowsgui"
+                  make VERSION=1.0.0 LDFLAGS="$flags"
+
+            - name: Assemble release and source
+              if: steps.candidate.outputs.needed == 'true'
+              run: |
+                  mkdir release
+                  for file in patcher.js preload.js renderer.js renderer.css; do
+                      test -s "dist/$file"
+                      cp "dist/$file" "dist/$file.map" release/
+                  done
+                  cp dist/patcher.js.LEGAL.txt dist/renderer.js.LEGAL.txt release/
+                  grep -q 'bwmp/Vencord' dist/patcher.js
+                  cp "$RUNNER_TEMP/bwmp-installer/build/"*.exe release/
+                  tar --exclude=.git --exclude=build -czf release/installer-source.tar.gz -C "$RUNNER_TEMP/bwmp-installer" .
+                  cp LICENSE release/
+                  (cd release && sha256sum *.js *.map *.css *.txt *.exe *.gz LICENSE > SHA256SUMS)
+                  printf 'Windows build of bwmp/Vencord.\n\nDownload **VencordInstaller.exe**, close Discord, then install or repair. Enable automatic updates in Vencord settings and restart Discord to load updates.\n\nSource: %s\nInstaller source: upstream %s with scripts/fork/installer.patch; complete source included.\n\nOlder releases remain available. See FORK.md for adding plugins and recovery.\n' "$(git rev-parse HEAD)" "$INSTALLER_COMMIT" > release-notes.md
+
+            - name: Publish verified commit and complete release
+              if: steps.candidate.outputs.needed == 'true'
+              run: |
+                  git push origin HEAD:main
+                  if ! gh release view "$BUILD_TAG" >/dev/null 2>&1; then
+                      gh release create "$BUILD_TAG" --target "$(git rev-parse HEAD)" --draft --title "BWMP Vencord $BUILD_HASH" --notes-file release-notes.md
+                  fi
+                  gh release upload "$BUILD_TAG" release/* --clobber
+                  gh release edit "$BUILD_TAG" --draft=false --latest --title "BWMP Vencord $BUILD_HASH" --notes-file release-notes.md
+                  echo "Published https://github.com/bwmp/Vencord/releases/tag/$BUILD_TAG" >> "$GITHUB_STEP_SUMMARY"
+
+            - name: Report failure
+              if: failure()
+              run: |
+                  echo 'Sync/build failed. The previous published release remains available. Check the failed step; resolve merge conflicts or plugin errors before retrying.' >> "$GITHUB_STEP_SUMMARY"
