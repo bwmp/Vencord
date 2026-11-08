@@ -68,7 +68,10 @@ export default tseslint.config(
                 "error",
                 {
                     "files": ["scripts/header-new.txt", "scripts/header-old.txt"],
-                    "templates": { "author": [".*", "Vendicated and contributors"] }
+                    "templates": {
+                        "author": [".*", "Vendicated and contributors"],
+                        "license": ["GPL-3.0-(?:only|or-later)", "GPL-3.0-or-later"]
+                    }
                 }
             ],
 

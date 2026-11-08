@@ -10,6 +10,8 @@ Use this fork's installer for future repairs. The official installer installs th
 
 ## Add plugins
 
+Bundled: [LastOnlineTracker](https://github.com/k1ng0p/LastOnlineTracker/tree/493727b2b3d048dd28fe2cab5921117621ac8b92), imported from commit `493727b2b3d048dd28fe2cab5921117621ac8b92` with formatting, type, and error-boundary adaptations. Enable it under Vencord > Plugins after updating. Plugin source updates are separate from the automatic Vencord upstream sync.
+
 Add each plugin to `src/userplugins/PluginName/index.ts` (or `index.tsx`), commit it, and push to `main`. This fork tracks that directory. Do not add a second nesting level. No sample plugins are bundled.
 
 The release workflow runs on pushes, hourly at minute 17, and manually through Actions. It merges `Vendicated/Vencord:main`, checks types and lint, builds Vencord and the Windows installers, then pushes the verified merge and publishes a complete release. Merge conflicts and failed checks stop publication. GitHub schedules can be delayed and can be disabled after 60 days without repository activity; check Actions if updates stop. Configure GitHub Actions failure notifications in your GitHub notification settings.
