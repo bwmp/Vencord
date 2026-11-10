@@ -69,7 +69,7 @@ jobs:
                   pnpm install --frozen-lockfile
                   pnpm test:ts
                   pnpm lint
-                  pnpm lint-styles
+                  pnpm fmt:check
                   pnpm build --standalone --dev
                   pnpm buildWeb --standalone --dev
                   pnpm generatePluginJson
